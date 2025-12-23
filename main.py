@@ -11,12 +11,9 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 API_TOKEN = os.environ['API_TOKEN']
 bot = telebot.TeleBot(BOT_TOKEN)
 
-number = None
-counter = 0
-card = None
-players = 0
-imposter = None
-photo = None
+
+value = {}
+
 
 url = "https://api.clashroyale.com/v1/cards"
 headers = {
@@ -27,7 +24,15 @@ headers = {
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    global number
+    if message.chat.id not in value:
+        value[message.chat.id] = {
+            'number': 0,
+            'counter': 0,
+            'card': None,
+            'players': 0,
+            'imposter': 0,
+            'photo': None
+        }
     markup = types.InlineKeyboardMarkup(row_width=2)
     btn1 = types.InlineKeyboardButton('3', callback_data='3')
     btn2 = types.InlineKeyboardButton('4', callback_data='4')
@@ -42,15 +47,14 @@ def game(call):
     btn1 = types.InlineKeyboardButton('Next', callback_data='next')
     markup.add(btn1)
     if call.data not in ['next', 'hide']:
-        global number,counter,card,players,imposter,photo
-        players = int(call.data)
-        number = random.randint(0, 120)
-        imposter = random.randint(0, players - 1)
+        value[call.message.chat.id]['players'] = int(call.data)
+        value[call.message.chat.id]['number'] = random.randint(0, 120)
+        value[call.message.chat.id]['imposter'] = random.randint(0, value[call.message.chat.id]['players'] - 1)
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             cards = json.loads(response.text)
-            card = cards['items'][number]['name']
-            photo = cards['items'][number]['iconUrls']['medium']
+            value[call.message.chat.id]['card'] = cards['items'][value[call.message.chat.id]['number']]['name']
+            value[call.message.chat.id]['photo'] = cards['items'][value[call.message.chat.id]['number']]['iconUrls']['medium']
             bot.send_message(call.message.chat.id, 'Хорошо игра начинаеться,нажмите на кнопку чтоби продолжить игру.', reply_markup=markup)
         else:
             bot.send_message(call.message.chat.id, 'Какие-то неполодки, мы уже работаем над ними.\nПриносим наши извинения', parse_mode='html')
@@ -61,17 +65,17 @@ def game(call):
         btn1 = types.InlineKeyboardButton('Hide', callback_data='hide')
         markup1.add(btn1)
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        if counter < players:
-            if counter == imposter:
-                bot.send_message(call.message.chat.id, f'Игрок {counter + 1},Ти шпион', reply_markup=markup1, parse_mode='html')
-                counter += 1
+        if value[call.message.chat.id]['counter'] < value[call.message.chat.id]['players']:
+            if value[call.message.chat.id]['counter'] == value[call.message.chat.id]['imposter']:
+                bot.send_message(call.message.chat.id, f'Игрок {value[call.message.chat.id]['counter'] + 1},Ти шпион', reply_markup=markup1, parse_mode='html')
+                value[call.message.chat.id]['counter'] += 1
             else:
-                bot.send_photo(chat_id=call.message.chat.id, photo=photo, caption=f'Игрок {counter + 1 },ваша карта {card}',reply_markup=markup1)
-                counter += 1
+                bot.send_photo(chat_id=call.message.chat.id, photo=value[call.message.chat.id]['photo'], caption=f'Игрок {value[call.message.chat.id]['counter'] + 1 },ваша карта {value[call.message.chat.id]['card']}',reply_markup=markup1)
+                value[call.message.chat.id]['counter'] += 1
         else:
             bot.send_message(call.message.chat.id, 'Да начнется битва,если хотите сиграть снова воспользуйтесь /start')
-            counter = 0
-            imposter = 0
+            value[call.message.chat.id]['counter'] = 0
+            value[call.message.chat.id]['imposter'] = 0
 
     if call.data == 'hide':
         bot.delete_message(call.message.chat.id, call.message.message_id)
