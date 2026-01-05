@@ -5,15 +5,15 @@ import requests
 from telebot import types
 import json
 import random
-from flask import Flask, request
+
 
 load_dotenv()
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 API_TOKEN = os.environ['API_TOKEN']
-WEBHOOK_URL= os.environ['WEBHOOK_URL']
+
 
 bot = telebot.TeleBot(BOT_TOKEN)
-server = Flask(__name__)
+
 
 value = {}
 
@@ -85,27 +85,8 @@ def game(call):
         bot.send_message(call.message.chat.id, 'Передайте телефон следуйщему игроку', reply_markup=markup)
     
 
-@server.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    json_str = request.get_data().decode("utf-8")
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return "OK", 200
 
-@server.route("/", methods=["GET"])
-def index():
-    return "Bot is running", 200
-
-
-if __name__ == "__main__":
-    bot.remove_webhook()
-    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-
-    server.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000))
-    )
-     
+bot.polling(none_stop=True)
 
 
 
