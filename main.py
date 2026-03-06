@@ -2,6 +2,7 @@ import telebot
 import os
 from dotenv import load_dotenv
 import requests
+from flask import Flask, request
 from telebot import types
 import json
 import random
@@ -9,19 +10,19 @@ import random
 
 load_dotenv()
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-API_TOKEN = os.environ['API_TOKEN']
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 
 bot = telebot.TeleBot(BOT_TOKEN)
+server = Flask(__name__)
 
 
 value = {}
 
 
-url = "https://api.clashroyale.com/v1/cards"
+url = os.getenv('URL')
 headers = {
-    "Authorization": f"Bearer {API_TOKEN}",
-    "Accept": "application/json"
+    'Secret-Key': os.getenv('API_TOKEN')
 }
 
 
@@ -51,13 +52,13 @@ def game(call):
     markup.add(btn1)
     if call.data not in ['next', 'hide']:
         value[call.message.chat.id]['players'] = int(call.data)
-        value[call.message.chat.id]['number'] = random.randint(0, 120)
+        value[call.message.chat.id]['number'] = random.randint(0, 121)
         value[call.message.chat.id]['imposter'] = random.randint(0, value[call.message.chat.id]['players'] - 1)
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             cards = json.loads(response.text)
             value[call.message.chat.id]['card'] = cards['items'][value[call.message.chat.id]['number']]['name']
-            value[call.message.chat.id]['photo'] = cards['items'][value[call.message.chat.id]['number']]['iconUrls']['medium']
+            value[call.message.chat.id]['photo'] = cards['items'][value[call.message.chat.id]['number']]['icon']
             bot.send_message(call.message.chat.id, 'Хорошо игра начинаеться,нажмите на кнопку чтоби продолжить игру.', reply_markup=markup)
         else:
             bot.send_message(call.message.chat.id, 'Какие-то неполодки, мы уже работаем над ними.\nПриносим наши извинения', parse_mode='html')
@@ -77,8 +78,14 @@ def game(call):
                 value[call.message.chat.id]['counter'] += 1
         else:
             bot.send_message(call.message.chat.id, 'Да начнется битва,если хотите сиграть снова воспользуйтесь /start')
-            value[call.message.chat.id]['counter'] = 0
-            value[call.message.chat.id]['imposter'] = 0
+            value[call.message.chat.id] = {
+                'number': 0,
+                'counter': 0,
+                'card': None,
+                'players': 0,
+                'imposter': 0,
+                'photo': None
+            }
 
     if call.data == 'hide':
         bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -86,7 +93,25 @@ def game(call):
     
 
 
-bot.polling(none_stop=True)
+@server.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    json_str = request.get_data().decode("utf-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "OK", 200
+
+@server.route("/", methods=["GET"])
+def index():
+    return "Bot is running", 200
+
+if __name__ == "__main__":
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+
+    server.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000))
+    )
 
 
 
